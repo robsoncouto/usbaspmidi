@@ -7,11 +7,13 @@
  * (C) 2010 by morecat_lab
  */
 
+
 #include <string.h>
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <avr/wdt.h>
+#include <util/delay.h>
 
 #include "usbdrv.h"
 #include "oddebug.h"
@@ -28,15 +30,15 @@ extern uchar parseSerialMidiMessage(uchar);
 }
 
 /* debugging LED */
-#ifdef ARDUINO
-#define LED_OFF  { PORTB &= ~0x20; }
-#define LED_ON   { PORTB |=  0x20; }
-#define FLIP_LED { PORTB ^=  0x20; }
-#else
-#define LED_OFF  { PORTB &= ~0x01; }
-#define LED_ON   { PORTB |=  0x01; }
-#define FLIP_LED { PORTB ^=  0x01; }
-#endif
+// #ifdef ARDUINO
+// #define LED_ON  { PORTB &= ~0x20; }
+// #define LED_OFF   { PORTB |=  0x20; }
+// #define FLIP_LED { PORTB ^=  0x20; }
+// #else
+#define LED_ON  { PORTC |=  0x01; }
+#define LED_OFF   { PORTC &= ~0x01; }
+#define FLIP_LED { PORTC ^=  0x01; }
+// #endif
 
 // #define RECEIVER
 // #define TRANSMITTER
@@ -75,7 +77,7 @@ enum {
 // Appendix B. Example: Simple MIDI Adapter (Informative)
 
 // B.1 Device Descriptor
-static PROGMEM char deviceDescrMIDI[] = {	/* USB device descriptor */
+const PROGMEM char deviceDescrMIDI[] = {	/* USB device descriptor */
   18,			/* sizeof(usbDescriptorDevice): length of descriptor in bytes */
   USBDESCR_DEVICE,	/* descriptor type */
   0x10, 0x01,		/* USB version supported */
@@ -93,7 +95,7 @@ static PROGMEM char deviceDescrMIDI[] = {	/* USB device descriptor */
 };
 
 // B.2 Configuration Descriptor
-static PROGMEM char configDescrMIDI[] = { /* USB configuration descriptor */
+const PROGMEM char configDescrMIDI[] = { /* USB configuration descriptor */
   9,	   /* sizeof(usbDescrConfig): length of descriptor in bytes */
   USBDESCR_CONFIG,		/* descriptor type */
   101, 0,			/* total length of data returned (including inlined descriptors) */
@@ -303,7 +305,7 @@ uchar usbFunctionRead( uchar *data, uchar len ) {
 /*---------------------------------------------------------------------------*/
 
 uchar usbFunctionWrite(uchar * data, uchar len) {
-  // setPortBit1(&PORTD, 5);		// DEBUG LED
+   setPortBit1(&PORTC, 0);		// DEBUG LED
   /* parseMidiMessage(data, len); */
   return 1;
 }
@@ -446,53 +448,28 @@ uchar parseSerialMidiMessage(uchar RxByte) {
 
 #endif
 
-#ifdef ARDUINO
-#define PORTD_DDR (0x00)
-#else
-#define PORTD_DDR (0b00100010)
-#endif
+// #ifdef ARDUINO
+// #define PORTD_DDR (0x00)
+// #else
+// //#define PORTD_DDR (0b00000010)
+// #endif
 
 static void hardwareInit(void) {
-  uchar i, j;
-
-  /* activate pull-ups except on USB lines */
-  USB_CFG_IOPORT =
-    (uchar) ~ ((1 << USB_CFG_DMINUS_BIT) |
-	       (1 << USB_CFG_DPLUS_BIT) | PORTD_DDR) ;
-  /* all pins input except USB (-> USB reset) */
-#ifdef USB_CFG_PULLUP_IOPORT
-  /* use usbDeviceConnect()/usbDeviceDisconnect() if available */
-  USBDDR = 0 | PORTD_DDR;	/* we do RESET by deactivating pullup */
-  usbDeviceDisconnect();
-#else
-  USBDDR = (1 << USB_CFG_DMINUS_BIT) | (1 << USB_CFG_DPLUS_BIT) | PORTD_DDR ;
-  /* for output (LED, TxD) */
-#endif
-
-  j = 0;
-  while (--j) {		/* USB Reset by device only required on Watchdog Reset */
-    i = 0;
-    while (--i);	/* delay >10ms for USB reset */
-  }
-#ifdef USB_CFG_PULLUP_IOPORT
-  usbDeviceConnect();
-#else
-  USBDDR = 0 | PORTD_DDR;		/*  remove USB reset condition */
-#endif
+  USB_CFG_IOPORT =(uchar) ~ ((1 << USB_CFG_DMINUS_BIT) |(1 << USB_CFG_DPLUS_BIT));
 
   /* set baud rate */
-  UBRRL	= 31;			/* 312500Hz at 16MHz clock */
+  UBRRH = 0;
+  UBRRL	= 23;			/* 312500Hz at 16MHz clock */
   /*  */
   UCSRB	= (1<<RXEN) | (1<<TXEN);
 
   /* DEBUGGING LED */
 
-#ifdef ARDUINO
-  DDRB = 0x20;
-#else
-  DDRB = 0x01;
-#endif
-  PORTB = 0;
+  DDRC = 0x01;
+  
+  //serial
+  DDRD = 0x02;
+
 }
 
 int main(void) {
@@ -500,12 +477,12 @@ int main(void) {
   wdt_enable(WDTO_1S);
   odDebugInit();
   hardwareInit();
+  _delay_ms(10);
   usbInit();
   
   sendEmptyFrame = 0;
 
   sei();
-  PORTB = 1;
   for(;;){
     wdt_reset();
     usbPoll();
