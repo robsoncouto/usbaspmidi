@@ -5,5 +5,7 @@ This is based on code from morecat_lab
 http://morecatlab.akiba.coocan.jp/morecat_lab/MOCO-e.html
 
 This is meant to be a gimmick. I just needed a converter to test a keyboard, so I hacked away morecat_labs code to work with the usbasp in some minutes. 
+
 You will need additional circuitry to condition the midi signal.
+
 I use a 6n137 opt-isolator for midi in.
